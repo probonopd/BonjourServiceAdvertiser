@@ -82,6 +82,7 @@ jobs:
 
           wix build `
             -arch x64 `
+            -acceptEula `
             -d "BuildDir=$buildDir" `
             -d "SourceDir=$srcDir" `
             installer\installer.wxs `
