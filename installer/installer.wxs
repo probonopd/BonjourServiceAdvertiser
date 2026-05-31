@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WiX v4 installer for BonjourServiceAdvertiser
+  Build:  wix build installer.wxs -o BonjourServiceAdvertiserSetup.msi
+  To produce an .exe bundle, use a WiX Bundle (.wixproj) with the MSI as payload.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <Package
+      Name="Bonjour Service Advertiser"
+      Version="1.0.0"
+      Manufacturer="BonjourServiceAdvertiser"
+      UpgradeCode="7A3F2E14-0C8D-4B1A-9F62-3E5D8C0A1B4F"
+      Compressed="yes"
+      InstallerVersion="500"
+      Scope="perMachine">
+
+    <!-- Allow upgrades; remove old version before installing new -->
+    <MajorUpgrade
+        DowngradeErrorMessage="A newer version of [ProductName] is already installed."
+        Schedule="afterInstallInitialize" />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- ----------------------------------------------------------------
+         Feature
+    ---------------------------------------------------------------- -->
+    <Feature Id="MainFeature" Title="Bonjour Service Advertiser" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+      <ComponentRef Id="ServiceComponent" />
+      <ComponentRef Id="ConfigComponent" />
+      <ComponentRef Id="EventLogComponent" />
+    </Feature>
+
+    <!-- ----------------------------------------------------------------
+         Directory structure
+    ---------------------------------------------------------------- -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLDIR" Name="BonjourServiceAdvertiser" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="APPDATADIR" Name="BonjourServiceAdvertiser">
+        <Directory Id="LOGDIR" Name="logs" />
+      </Directory>
+    </StandardDirectory>
+
+    <!-- ----------------------------------------------------------------
+         Main executable + service installation
+    ---------------------------------------------------------------- -->
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLDIR">
+      <Component Id="MainExecutable" Guid="A1B2C3D4-E5F6-7890-ABCD-EF1234567890">
+        <File Id="BonjourServiceAdvertiserExe"
+              Source="$(var.BuildDir)\BonjourServiceAdvertiser.exe"
+              KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Component Id="ServiceComponent" Directory="INSTALLDIR"
+               Guid="B2C3D4E5-F6A7-8901-BCDE-F12345678901">
+      <ServiceInstall
+          Id="BonjourServiceAdvertiserInstall"
+          Name="BonjourServiceAdvertiser"
+          DisplayName="Bonjour Service Advertiser"
+          Description="Automatically advertises Windows services via Bonjour (mDNS/DNS-SD)."
+          Type="ownProcess"
+          Start="auto"
+          Account="LocalService"
+          ErrorControl="normal"
+          Interactive="no" />
+      <ServiceControl
+          Id="StartService"
+          Name="BonjourServiceAdvertiser"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="yes" />
+      <!-- Dummy KeyPath so WiX is happy -->
+      <RegistryValue Root="HKLM"
+                     Key="SOFTWARE\BonjourServiceAdvertiser"
+                     Name="Installed"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+
+    <!-- ----------------------------------------------------------------
+         Default config file (only written if not already present)
+    ---------------------------------------------------------------- -->
+    <Component Id="ConfigComponent" Directory="APPDATADIR"
+               Guid="C3D4E5F6-A7B8-9012-CDEF-012345678902"
+               NeverOverwrite="yes">
+      <File Id="DefaultConfig"
+            Source="$(var.SourceDir)\installer\advertiser.ini.default"
+            Name="advertiser.ini"
+            KeyPath="yes" />
+    </Component>
+
+    <!-- ----------------------------------------------------------------
+         Log directory (empty, just ensure it exists)
+    ---------------------------------------------------------------- -->
+    <!-- LOGDIR is created via CreateFolder automatically because it's a
+         directory containing a component -->
+    <Component Id="LogDirComponent" Directory="LOGDIR"
+               Guid="D4E5F6A7-B8C9-0123-DEF0-123456789003">
+      <CreateFolder />
+      <RegistryValue Root="HKLM"
+                     Key="SOFTWARE\BonjourServiceAdvertiser"
+                     Name="LogDir"
+                     Type="string"
+                     Value="[LOGDIR]"
+                     KeyPath="yes" />
+    </Component>
+
+    <!-- ----------------------------------------------------------------
+         Event Log source registration
+    ---------------------------------------------------------------- -->
+    <Component Id="EventLogComponent" Directory="INSTALLDIR"
+               Guid="E5F6A7B8-C9D0-1234-EF01-234567890004">
+      <RegistryValue Root="HKLM"
+          Key="SYSTEM\CurrentControlSet\Services\EventLog\Application\BonjourServiceAdvertiser"
+          Name="EventMessageFile"
+          Type="string"
+          Value="%SystemRoot%\System32\EventCreate.exe"
+          KeyPath="yes" />
+      <RegistryValue Root="HKLM"
+          Key="SYSTEM\CurrentControlSet\Services\EventLog\Application\BonjourServiceAdvertiser"
+          Name="TypesSupported"
+          Type="integer"
+          Value="7" />
+    </Component>
+
+    <!-- ----------------------------------------------------------------
+         Start Menu shortcut (optional, for uninstall convenience)
+    ---------------------------------------------------------------- -->
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="StartMenuDir" Name="Bonjour Service Advertiser" />
+    </StandardDirectory>
+
+    <Component Id="StartMenuComponent" Directory="StartMenuDir"
+               Guid="F6A7B8C9-D0E1-2345-F012-345678900005">
+      <Shortcut Id="UninstallShortcut"
+                Name="Uninstall Bonjour Service Advertiser"
+                Target="[SystemFolder]msiexec.exe"
+                Arguments="/x [ProductCode]"
+                Description="Uninstall Bonjour Service Advertiser" />
+      <RemoveFolder Id="RemoveStartMenuDir"
+                    Directory="StartMenuDir"
+                    On="uninstall" />
+      <RegistryValue Root="HKCU"
+                     Key="SOFTWARE\BonjourServiceAdvertiser"
+                     Name="StartMenu"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+
+    <!-- ----------------------------------------------------------------
+         UI — minimal built-in dialog set
+    ---------------------------------------------------------------- -->
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.SourceDir)\installer\LICENSE.rtf" />
+    <UIRef Id="WixUI_Minimal" />
+
+    <!-- ----------------------------------------------------------------
+         Bonjour prerequisite check
+         If dnssd.dll is not present, warn and offer to abort.
+    ---------------------------------------------------------------- -->
+    <Property Id="BONJOUR_PRESENT">
+      <RegistrySearch Id="BonjourRegSearch"
+                      Root="HKLM"
+                      Key="SOFTWARE\Apple Inc.\Bonjour"
+                      Name="Version"
+                      Type="raw"
+                      Win64="no" />
+    </Property>
+
+    <Condition Message="Bonjour (Apple mDNSResponder) must be installed before running this setup. Please install Bonjour for Windows from Apple, then re-run this installer.">
+      <![CDATA[BONJOUR_PRESENT OR Installed]]>
+    </Condition>
+
+  </Package>
+</Wix>

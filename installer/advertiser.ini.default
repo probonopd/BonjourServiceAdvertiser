@@ -1,0 +1,38 @@
+; BonjourServiceAdvertiser default configuration
+; This file is written to %ProgramData%\BonjourServiceAdvertiser\advertiser.ini
+; on first run if no configuration exists.
+
+[services]
+; Set to true/false to enable or disable automatic detection and advertisement.
+ssh=true
+smb=true
+rdp=true
+http=true
+https=true
+ftp=true
+webdav=true
+printers=true
+
+; -----------------------------------------------------------------
+; Custom advertisement examples (remove the ';' prefix to activate)
+; -----------------------------------------------------------------
+
+; [custom:jenkins]
+; enabled=true
+; name=Jenkins
+; type=_http._tcp
+; port=8080
+; txt.path=/
+; txt.version=2.504
+
+; [custom:minecraft]
+; enabled=true
+; name=Minecraft Server
+; type=_minecraft._tcp
+; port=25565
+
+; [custom:gitea]
+; enabled=true
+; name=Git HTTP
+; type=_http._tcp
+; port=3000

@@ -1,0 +1,128 @@
+name: Build
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:     [ "v*" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    name: Build (MinGW-w64, Windows)
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      # ----------------------------------------------------------------
+      # 1. Checkout
+      # ----------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ----------------------------------------------------------------
+      # 2. Set up MSYS2 + MinGW-w64 toolchain
+      # ----------------------------------------------------------------
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-make
+
+      # ----------------------------------------------------------------
+      # 3. Configure
+      # ----------------------------------------------------------------
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -G "Ninja" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_SYSTEM_NAME=Windows
+
+      # ----------------------------------------------------------------
+      # 4. Build
+      # ----------------------------------------------------------------
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      # ----------------------------------------------------------------
+      # 5. Upload executable artifact
+      # ----------------------------------------------------------------
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: BonjourServiceAdvertiser-exe
+          path: build/BonjourServiceAdvertiser.exe
+          if-no-files-found: error
+
+      # ----------------------------------------------------------------
+      # 6. Build installer (only on tag pushes)
+      #    Requires .NET 8 (pre-installed on windows-latest) + WiX v4
+      # ----------------------------------------------------------------
+      - name: Install WiX toolset
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: dotnet tool install --global wix
+
+      - name: Build MSI installer
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $buildDir = "${{ github.workspace }}\build"
+          $srcDir   = "${{ github.workspace }}"
+
+          # Add WiX to PATH (dotnet tools)
+          $env:PATH = "$env:USERPROFILE\.dotnet\tools;$env:PATH"
+
+          wix build `
+            -arch x64 `
+            -d "BuildDir=$buildDir" `
+            -d "SourceDir=$srcDir" `
+            installer\installer.wxs `
+            -o BonjourServiceAdvertiserSetup.msi
+
+      - name: Upload MSI installer
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: BonjourServiceAdvertiserSetup-msi
+          path: BonjourServiceAdvertiserSetup.msi
+          if-no-files-found: error
+
+  # ----------------------------------------------------------------
+  # Release — attach artifacts to the GitHub release on tag push
+  # ----------------------------------------------------------------
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download MSI
+        uses: actions/download-artifact@v4
+        with:
+          name: BonjourServiceAdvertiserSetup-msi
+
+      - name: Download EXE
+        uses: actions/download-artifact@v4
+        with:
+          name: BonjourServiceAdvertiser-exe
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            BonjourServiceAdvertiserSetup.msi
+            BonjourServiceAdvertiser.exe
+          generate_release_notes: true

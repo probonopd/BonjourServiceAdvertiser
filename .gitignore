@@ -1,0 +1,17 @@
+# .gitignore for BonjourServiceAdvertiser
+build/
+*.o
+*.obj
+*.exe
+*.msi
+*.pdb
+*.ilk
+*.exp
+*.lib
+.cache/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.user
+.vs/
