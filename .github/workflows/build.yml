@@ -73,8 +73,6 @@ jobs:
 
       - name: Build MSI installer
         shell: pwsh
-        env:
-          WIX_ACCEPT_EULA: 1
         run: |
           $buildDir = "${{ github.workspace }}\build"
           $srcDir   = "${{ github.workspace }}"
@@ -84,6 +82,7 @@ jobs:
 
           wix build `
             -arch x64 `
+            -acceptEula yes `
             -d "BuildDir=$buildDir" `
             -d "SourceDir=$srcDir" `
             installer\installer.wxs `
