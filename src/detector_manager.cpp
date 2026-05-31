@@ -2,6 +2,11 @@
 #include "logger.h"
 #include "port_checker.h"
 
+#ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+
 #include <algorithm>
 
 namespace bsa {
@@ -12,6 +17,22 @@ DetectorManager::DetectorManager()
 
 std::string DetectorManager::MakeKey(const std::string& type, uint16_t port) {
     return type + ":" + std::to_string(port);
+}
+
+// Get the computer name for use in service advertisements
+static std::string GetComputerNameForAds() {
+    wchar_t buf[MAX_COMPUTERNAME_LENGTH + 1] = {};
+    DWORD size = MAX_COMPUTERNAME_LENGTH + 1;
+    if (GetComputerNameW(buf, &size)) {
+        // Convert wide to narrow and trim
+        std::string name(buf, buf + size);
+        // Replace spaces/underscores with hyphens for mDNS compatibility
+        for (auto& c : name) {
+            if (c == ' ' || c == '_') c = '-';
+        }
+        return name;
+    }
+    return "Computer";  // Fallback
 }
 
 // ---------------------------------------------------------------------------
@@ -29,6 +50,9 @@ void DetectorManager::Reconcile(BonjourPublisher& publisher,
                                  const ServiceConfig& cfg)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
+
+    // Get computer name to prepend to all service advertisements
+    std::string computerName = GetComputerNameForAds();
 
     // -----------------------------------------------------------------------
     // 1. Collect the desired set of advertisements
@@ -62,7 +86,9 @@ void DetectorManager::Reconcile(BonjourPublisher& publisher,
         if (!enabled) continue;
         if (!det->IsActive()) continue;
 
-        desired.push_back({det->Name(), t, det->Port(), det->TxtRecords()});
+        // Prepend computer name to service name (e.g., "MYPC-SSH")
+        std::string fullName = computerName + "-" + det->Name();
+        desired.push_back({fullName, t, det->Port(), det->TxtRecords()});
     }
 
     // Custom advertisements
