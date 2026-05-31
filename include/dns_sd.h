@@ -38,6 +38,29 @@ enum {
 };
 
 /* -------------------------------------------------------------------------
+ * Raw record handle (DNSServiceRegisterRecord)
+ * ---------------------------------------------------------------------- */
+typedef void *DNSRecordRef;
+
+/* DNS record types needed for device-info registration */
+enum {
+    kDNSServiceType_PTR = 12,
+    kDNSServiceType_TXT = 16,
+    kDNSServiceType_SRV = 33
+};
+
+/* DNS record class */
+enum {
+    kDNSServiceClass_IN = 1
+};
+
+/* Flags for DNSServiceRegisterRecord */
+enum {
+    kDNSServiceFlagsShared = 0x10,  /* multiple registrants allowed */
+    kDNSServiceFlagsUnique = 0x20   /* unique; conflict detection  */
+};
+
+/* -------------------------------------------------------------------------
  * DNSServiceRegisterReply – callback delivered when registration completes
  * ---------------------------------------------------------------------- */
 typedef void (DNSSD_API *DNSServiceRegisterReply)(
@@ -109,6 +132,42 @@ typedef const void *(DNSSD_API *TXTRecordGetBytesPtr_f)(
 
 typedef void (DNSSD_API *TXTRecordDeallocate_f)(
     TXTRecordRef *txtRecord
+);
+
+/* -------------------------------------------------------------------------
+ * Raw record registration API
+ * ---------------------------------------------------------------------- */
+typedef void (DNSSD_API *DNSServiceRegisterRecordReply)(
+    DNSServiceRef       sdRef,
+    DNSRecordRef        RecordRef,
+    DNSServiceFlags     flags,
+    DNSServiceErrorType errorCode,
+    void               *context
+);
+
+typedef DNSServiceErrorType (DNSSD_API *DNSServiceCreateConnection_f)(
+    DNSServiceRef *sdRef
+);
+
+typedef DNSServiceErrorType (DNSSD_API *DNSServiceRegisterRecord_f)(
+    DNSServiceRef                 sdRef,
+    DNSRecordRef                 *RecordRef,
+    DNSServiceFlags               flags,
+    uint32_t                      interfaceIndex,
+    const char                   *fullname,
+    uint16_t                      rrtype,
+    uint16_t                      rrclass,
+    uint16_t                      rdlen,
+    const void                   *rdata,
+    uint32_t                      ttl,
+    DNSServiceRegisterRecordReply callBack,
+    void                         *context
+);
+
+typedef DNSServiceErrorType (DNSSD_API *DNSServiceRemoveRecord_f)(
+    DNSServiceRef   sdRef,
+    DNSRecordRef    RecordRef,
+    DNSServiceFlags flags
 );
 
 #ifdef __cplusplus

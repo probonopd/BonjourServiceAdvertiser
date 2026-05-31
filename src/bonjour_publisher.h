@@ -29,15 +29,32 @@ public:
 
     Advertisement(const Advertisement&)            = delete;
     Advertisement& operator=(const Advertisement&) = delete;
-    Advertisement(Advertisement&&)                 = default;
-    Advertisement& operator=(Advertisement&&)      = default;
+
+    Advertisement(Advertisement&& o) noexcept
+        : m_sdRef(o.m_sdRef), m_deallocFn(o.m_deallocFn),
+          m_removeFn(o.m_removeFn), m_recordRefs(std::move(o.m_recordRefs))
+    { o.m_sdRef = nullptr; }
+
+    Advertisement& operator=(Advertisement&& o) noexcept {
+        if (this != &o) {
+            Deregister();
+            m_sdRef      = o.m_sdRef;      o.m_sdRef = nullptr;
+            m_deallocFn  = o.m_deallocFn;
+            m_removeFn   = o.m_removeFn;
+            m_recordRefs = std::move(o.m_recordRefs);
+        }
+        return *this;
+    }
 
     bool IsRegistered() const { return m_sdRef != nullptr; }
     void Deregister();
 
     // Internal — set by BonjourPublisher
-    DNSServiceRef             m_sdRef     = nullptr;
-    DNSServiceRefDeallocate_f m_deallocFn = nullptr;
+    DNSServiceRef             m_sdRef      = nullptr;
+    DNSServiceRefDeallocate_f m_deallocFn  = nullptr;
+    // For raw record registrations (DNSServiceRegisterRecord)
+    DNSServiceRemoveRecord_f  m_removeFn   = nullptr;
+    std::vector<DNSRecordRef> m_recordRefs;
 };
 
 // ---------------------------------------------------------------------------
@@ -72,6 +89,14 @@ public:
         uint16_t                         port,
         const std::vector<TxtRecord>&    txtRecords = {});
 
+    /// Publish _device-info._tcp using raw DNS records, bypassing the
+    /// mDNSResponder filtering that suppresses client-registered device-info
+    /// service entries.
+    std::unique_ptr<Advertisement> RegisterDeviceInfo(
+        const std::string&            instanceName,
+        const std::string&            hostName,
+        const std::vector<TxtRecord>& txt);
+
 private:
     bool LoadDll();
     void UnloadDll();
@@ -88,6 +113,10 @@ private:
     TXTRecordGetLength_f      m_txtLen        = nullptr;
     TXTRecordGetBytesPtr_f    m_txtBytes      = nullptr;
     TXTRecordDeallocate_f     m_txtDealloc    = nullptr;
+    // Raw record API (for device-info)
+    DNSServiceCreateConnection_f m_createConn   = nullptr;
+    DNSServiceRegisterRecord_f   m_regRecord    = nullptr;
+    DNSServiceRemoveRecord_f     m_removeRecord = nullptr;
 };
 
 } // namespace bsa

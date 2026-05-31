@@ -133,6 +133,74 @@ public:
 };
 
 // ---------------------------------------------------------------------------
+// Helper: read a REG_SZ / REG_EXPAND_SZ value from the Windows registry.
+// Returns fallback when the key/value does not exist.
+// ---------------------------------------------------------------------------
+static std::string ReadRegString(HKEY root, const wchar_t* path,
+                                  const wchar_t* valueName,
+                                  const char*    fallback)
+{
+    HKEY hk = nullptr;
+    if (RegOpenKeyExW(root, path, 0, KEY_READ, &hk) != ERROR_SUCCESS)
+        return fallback;
+    wchar_t buf[512] = {};
+    DWORD   bytes    = sizeof(buf);
+    DWORD   type     = 0;
+    LSTATUS rc       = RegQueryValueExW(hk, valueName, nullptr, &type,
+                                        reinterpret_cast<LPBYTE>(buf), &bytes);
+    RegCloseKey(hk);
+    if (rc != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ))
+        return fallback;
+    // Convert wide → narrow (safe for ASCII product/build strings)
+    std::string out;
+    out.reserve(wcslen(buf));
+    for (const wchar_t* p = buf; *p; ++p)
+        out += static_cast<char>(*p);
+    return out.empty() ? fallback : out;
+}
+
+// ---------------------------------------------------------------------------
+// Device Info — advertise _device-info._tcp port 0 with hardware model and
+// OS version, mirroring the record that macOS publishes so that Bonjour
+// browsers (e.g. Discovery, dns-sd, avahi-browse) can show the correct
+// device icon and OS information.
+// ---------------------------------------------------------------------------
+class DeviceInfoDetector final : public IDetector {
+    std::string m_model;
+    std::string m_osVers;
+public:
+    DeviceInfoDetector() {
+        // Hardware model, e.g. "Virtual Machine" or "Latitude 7490"
+        m_model = ReadRegString(
+            HKEY_LOCAL_MACHINE,
+            L"SYSTEM\\CurrentControlSet\\Control\\SystemInformation",
+            L"SystemProductName", "PC");
+
+        // OS product name, e.g. "Windows 11 Enterprise"
+        std::string product = ReadRegString(
+            HKEY_LOCAL_MACHINE,
+            L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
+            L"ProductName", "Windows");
+        // Build number, e.g. "26100"
+        std::string build = ReadRegString(
+            HKEY_LOCAL_MACHINE,
+            L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
+            L"CurrentBuild", "");
+        m_osVers = product;
+        if (!build.empty())
+            m_osVers += " (Build " + build + ")";
+    }
+
+    const char* Name()        const override { return "DeviceInfo"; }
+    const char* ServiceType() const override { return "_device-info._tcp"; }
+    uint16_t    Port()        const override { return 0; }
+    bool IsActive() const override { return HasNonLoopbackInterface(); }
+    std::vector<TxtRecord> TxtRecords() const override {
+        return {{"model", m_model}, {"osVers", m_osVers}};
+    }
+};
+
+// ---------------------------------------------------------------------------
 // Factory: creates all built-in detector instances
 // ---------------------------------------------------------------------------
 std::vector<std::unique_ptr<IDetector>> CreateBuiltinDetectors() {
@@ -146,6 +214,7 @@ std::vector<std::unique_ptr<IDetector>> CreateBuiltinDetectors() {
     v.push_back(std::make_unique<FtpDetector>());
     v.push_back(std::make_unique<WebDavDetector>());
     v.push_back(std::make_unique<PrinterDetector>());
+    v.push_back(std::make_unique<DeviceInfoDetector>());
     return v;
 }
 

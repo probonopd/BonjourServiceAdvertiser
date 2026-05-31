@@ -8,6 +8,7 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <cctype>
 
 namespace bsa {
 
@@ -83,6 +84,8 @@ void DetectorManager::Reconcile(BonjourPublisher& publisher,
         else if (cfg.ftp      && std::string(t) == "_ftp._tcp")   enabled = true;
         else if (cfg.webdav   && std::string(t) == "_webdav._tcp") enabled = true;
         else if (cfg.printers && std::string(t) == "_ipp._tcp")   enabled = true;
+        // device-info is always enabled — it's metadata about the host itself
+        else if (std::string(t) == "_device-info._tcp")             enabled = true;
 
         if (!enabled) continue;
         if (!det->IsActive()) continue;
@@ -128,7 +131,17 @@ void DetectorManager::Reconcile(BonjourPublisher& publisher,
         const std::string key = MakeKey(d.type, d.port);
         if (m_active.count(key)) continue; // already registered
 
-        auto adv = publisher.Register(d.name, d.type, d.port, d.txt);
+        std::unique_ptr<Advertisement> adv;
+        if (d.type == "_device-info._tcp") {
+            // Use raw DNS record registration to bypass mDNSResponder's
+            // filtering of client-registered _device-info._tcp services.
+            std::string hostLower = computerName;
+            for (auto& c : hostLower)
+                c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+            adv = publisher.RegisterDeviceInfo(computerName, hostLower, d.txt);
+        } else {
+            adv = publisher.Register(d.name, d.type, d.port, d.txt);
+        }
         if (adv) {
             m_active.emplace(key, std::move(adv));
         }
