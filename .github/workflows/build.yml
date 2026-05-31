@@ -64,14 +64,17 @@ jobs:
           if-no-files-found: error
 
       # ----------------------------------------------------------------
-      # 6. Build installer (on every commit)
+      # 6. Build installer (only on tag pushes)
       #    Requires .NET 8 (pre-installed on windows-latest) + WiX v4
+      #    Note: WiX v7 EULA acceptance requires interactive acceptance
       # ----------------------------------------------------------------
       - name: Install WiX toolset
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: dotnet tool install --global wix
 
       - name: Build MSI installer
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
           $buildDir = "${{ github.workspace }}\build"
@@ -82,13 +85,13 @@ jobs:
 
           wix build `
             -arch x64 `
-            -acceptEula yes `
             -d "BuildDir=$buildDir" `
             -d "SourceDir=$srcDir" `
             installer\installer.wxs `
             -o BonjourServiceAdvertiserSetup.msi
 
       - name: Upload MSI installer
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
           name: BonjourServiceAdvertiserSetup-msi
