@@ -1,508 +1,78 @@
-# Bonjour Service Advertiser for Windows
+# Bonjour Service Advertiser
 
-## Purpose
+Advertises Windows network services over mDNS/DNS-SD (Bonjour) so they are automatically discoverable by macOS Finder, avahi, and other Bonjour clients on the local network — with no configuration required.
 
-Provide automatic Bonjour (mDNS/DNS-SD) advertisement of commonly available Windows-hosted services.
+## Requirements
 
-The service continuously detects selected Windows services and publishes corresponding DNS-SD advertisements through Apple's Bonjour SDK.
-
-The product shall install and operate with minimal user interaction.
-
----
-
-# Product Goals
-
-## Automatic Discovery
-
-Detect and advertise:
-
-* SSH
-* SMB
-* RDP
-* HTTP
-* HTTPS
-* FTP
-* WebDAV
-* Printer services
-
-## Manual Advertisements
-
-Allow administrators to define additional DNS-SD advertisements through a configuration file.
-
-No plugin system shall be implemented.
-
----
-
-# Deployment Requirements
+- Windows 10 or 11 (64-bit)
+- Apple Bonjour for Windows — installed automatically with [iTunes](https://www.apple.com/itunes/) or the Apple Devices app, or [downloaded separately](https://support.apple.com/kb/DL999)
 
 ## Installation
 
-The product shall be distributed as a single installer executable.
+1. Download `BonjourServiceAdvertiserSetup.exe` from [Releases](../../releases/latest)
+2. Run the installer (Administrator required)
+3. Click **Install** — the service starts automatically at the end
 
-Installation shall require no configuration.
+During setup you can optionally enable:
 
-User workflow:
+| Option | Effect |
+|---|---|
+| **Install OpenSSH Server** | Installs the Windows optional feature and starts `sshd` |
+| **Allow empty passwords** | Sets `PermitEmptyPasswords yes` in `sshd_config` and restarts `sshd` |
 
-1. Download installer
-2. Run installer
-3. Click Install
+## What gets advertised
 
-The service starts automatically.
+| Service | mDNS type | Condition |
+|---|---|---|
+| SSH | `_ssh._tcp` | `sshd` is running on port 22 |
+| SFTP | `_sftp-ssh._tcp` | `sshd` is running on port 22 |
+| File sharing | `_smb._tcp` | LanmanServer is running on port 445 |
+| Remote Desktop | `_rdp._tcp` | TermService is running on port 3389 |
+| HTTP | `_http._tcp` | Port 80 is listening |
+| HTTPS | `_https._tcp` | Port 443 is listening |
+| FTP | `_ftp._tcp` | FTP service is running |
+| WebDAV | `_webdav._tcp` | WebDAV is enabled |
+| Printers | `_ipp._tcp` | Shared printers are present |
+| Device info | `_device-info._tcp` | Always — shows hardware model and OS version |
 
-No command-line options required.
+## Configuration
 
----
+The config file is created on first run at:
 
-## Uninstallation
+```
+C:\ProgramData\BonjourServiceAdvertiser\advertiser.ini
+```
 
-The installer shall register a standard Windows uninstall entry.
+Edit it to disable built-in services or add custom DNS-SD entries. Changes take effect automatically without restarting.
 
-User workflow:
+### Custom advertisement example
 
-1. Open Apps & Features
-2. Select product
-3. Click Uninstall
-
-Uninstallation shall:
-
-* Stop the service
-* Remove the service
-* Remove program files
-* Remove Start Menu entries
-* Remove uninstall registration
-
-Configuration files may optionally be preserved if the user chooses.
-
----
-
-## Installer Technology
-
-Preferred:
-
-* WiX Toolset
-
-Alternative:
-
-* Inno Setup
-
-Installer output:
-
-BonjourServiceAdvertiserSetup.exe
-
-Single-file installer.
-
----
-
-# Service Details
-
-Service Name:
-
-BonjourServiceAdvertiser
-
-Display Name:
-
-Bonjour Service Advertiser
-
-Startup Type:
-
-Automatic (Delayed Start)
-
-Account:
-
-LocalService
-
----
-
-# Technology Stack
-
-Language:
-
-C++20
-
-Compiler:
-
-MinGW-w64 GCC
-
-Build System:
-
-CMake
-
-Dependencies:
-
-* Apple Bonjour SDK
-* Win32 API
-* IP Helper API
-
-No Cygwin runtime dependency permitted.
-
----
-
-# High-Level Architecture
-
-+----------------------+
-| Windows Service      |
-+-----------+----------+
-|
-v
-+----------------------+
-| Detector Manager     |
-+-----------+----------+
-|
-v
-+----------------------+
-| Service Registry     |
-+-----------+----------+
-|
-v
-+----------------------+
-| Bonjour Publisher    |
-+----------------------+
-
----
-
-# Built-In Detectors
-
-## SSH
-
-Requirements:
-
-* sshd service running
-* Port 22 listening
-
-Advertisement:
-
-_ssh._tcp
-
----
-
-## SMB
-
-Requirements:
-
-* LanmanServer running
-* Port 445 listening
-
-Advertisement:
-
-_smb._tcp
-
----
-
-## RDP
-
-Requirements:
-
-* TermService running
-* Port 3389 listening
-
-Advertisement:
-
-_rdp._tcp
-
----
-
-## HTTP
-
-Requirements:
-
-* HTTP listener detected
-
-Advertisement:
-
-_http._tcp
-
----
-
-## HTTPS
-
-Requirements:
-
-* HTTPS listener detected
-
-Advertisement:
-
-_https._tcp
-
----
-
-## FTP
-
-Requirements:
-
-* FTP service running
-
-Advertisement:
-
-_ftp._tcp
-
----
-
-## WebDAV
-
-Requirements:
-
-* WebDAV enabled
-
-Advertisement:
-
-_webdav._tcp
-
----
-
-## Printers
-
-Requirements:
-
-* Shared printer available
-
-Advertisement:
-
-_ipp._tcp
-
----
-
-# Configuration
-
-Configuration file:
-
-advertiser.ini
-
-Location:
-
-%ProgramData%\BonjourServiceAdvertiser\advertiser.ini
-
-The service monitors the file and reloads changes automatically.
-
----
-
-# Built-In Service Controls
-
-Example:
-
-[services]
-ssh=true
-smb=true
-rdp=true
-http=true
-https=true
-ftp=false
-webdav=false
-printers=true
-
----
-
-# Custom Advertisements
-
-Administrators may define arbitrary DNS-SD advertisements.
-
-Example:
-
-[custom:jenkins]
+```ini
+[custom:jellyfin]
 enabled=true
-name=Jenkins
+name=Jellyfin
 type=_http._tcp
-port=8080
+port=8096
+txt.path=/web/
+```
 
-[custom:minecraft]
-enabled=true
-name=Minecraft Server
-type=_minecraft._tcp
-port=25565
+## Uninstall
 
-[custom:git]
-enabled=true
-name=Git HTTP
-type=_http._tcp
-port=3000
+Open **Settings → Apps**, find **Bonjour Service Advertiser**, and click **Uninstall**.
 
----
+The configuration file in `%ProgramData%\BonjourServiceAdvertiser\` is preserved.
 
-# TXT Records
+## Building from source
 
-TXT records may be specified.
+Requires MSYS2 with the MinGW-w64 toolchain.
 
-Example:
+```bash
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=Windows
+cmake --build build
+```
 
-[custom:jenkins]
-enabled=true
-name=Jenkins
-type=_http._tcp
-port=8080
-txt.path=/
-txt.version=2.504
+Build the installer (requires [NSIS 3.x](https://nsis.sourceforge.io/)):
 
-Produces:
-
-path=/
-version=2.504
-
----
-
-# Validation
-
-Custom advertisements shall be validated before publication.
-
-Validation rules:
-
-* Port 1-65535
-* Valid DNS-SD service type
-* Valid service name
-* TXT keys ≤255 bytes
-* TXT values ≤255 bytes
-
-Invalid entries shall be ignored and logged.
-
----
-
-# Advertisement Rules
-
-Automatic advertisements require:
-
-Service running
-AND
-Port listening
-AND
-At least one non-loopback interface
-
-Custom advertisements require:
-
-Enabled
-AND
-Port listening
-
-Custom advertisements shall not require a Windows service.
-
----
-
-# Bonjour Integration
-
-Bonjour shall be loaded dynamically.
-
-Implementation:
-
-LoadLibrary("dnssd.dll")
-
-If Bonjour is unavailable:
-
-* Service remains running
-* Warning logged
-* Retry every 60 seconds
-
-When Bonjour becomes available:
-
-* Publish all advertisements automatically
-
----
-
-# Event Handling
-
-Use:
-
-NotifyServiceStatusChange()
-
-for service lifecycle events.
-
-Use:
-
-NotifyIpInterfaceChange()
-
-for network changes.
-
-Perform full reconciliation every:
-
-300 seconds
-
----
-
-# Logging
-
-Destinations:
-
-* Windows Event Log
-* Rolling log files
-
-Directory:
-
-%ProgramData%\BonjourServiceAdvertiser\logs
-
-Format:
-
-JSON Lines
-
-Example:
-
-{
-"time":"2026-05-31T12:30:00Z",
-"level":"INFO",
-"event":"advertised",
-"service":"_ssh._tcp",
-"port":22
-}
-
-Maximum file size:
-
-50 MB
-
-Retention:
-
-10 files
-
----
-
-# Security Policy
-
-Automatically advertise only:
-
-* SSH
-* SMB
-* RDP
-* HTTP
-* HTTPS
-* FTP
-* WebDAV
-* Printers
-
-Never automatically advertise:
-
-* WinRM
-* WMI
-* RPC
-* DCOM
-* SQL Server
-* LDAP
-* Kerberos
-
-Custom advertisements may advertise any port explicitly configured by the administrator.
-
----
-
-# Acceptance Criteria
-
-Installer:
-
-* One-click installation
-* One-click uninstall
-
-Service:
-
-* Starts automatically after installation
-* Survives reboot
-* Recovers from Bonjour restarts
-
-Discovery:
-
-* Advertisements visible from macOS Finder
-* Advertisements visible via dns-sd
-* Advertisements removed within 30 seconds of service shutdown
-
-Configuration:
-
-* INI changes applied without restarting the service
-
-Reliability:
-
-* No crash when Bonjour is missing
-* No crash when network interfaces change
-* No crash when monitored services stop unexpectedly
-
-One thing I'd add before implementation begins: bundle a Bonjour runtime check into the installer. If Bonjour is not already installed, the installer should either (a) install a bundled Bonjour redistributable silently or (b) clearly state that Bonjour is required and offer to install it. Requiring users to discover and install Bonjour manually would make the "one-click" goal fail in practice.
+```bash
+makensis -DBUILDDIR=build -DSRCDIR=. installer/installer.nsi
+```

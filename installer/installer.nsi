@@ -13,6 +13,16 @@ SetCompressor /SOLID lzma
 !include "LogicLib.nsh"
 !include "x64.nsh"
 !include "FileFunc.nsh"
+!include "nsDialogs.nsh"
+
+; ============================================================================
+; Options dialog variables
+; ============================================================================
+Var Dialog
+Var Checkbox_SSH
+Var Checkbox_EmptyPwd
+Var SSH_State
+Var EmptyPwd_State
 
 ; ============================================================================
 ; Defines (can be overridden from command line with /D)
@@ -52,13 +62,11 @@ VIAddVersionKey /LANG=0 "LegalCopyright"  "See LICENSE"
 ; MUI pages
 ; ============================================================================
 !define MUI_ABORTWARNING
-!define MUI_FINISHPAGE_RUN         "$INSTDIR\BonjourServiceAdvertiser.exe"
-!define MUI_FINISHPAGE_RUN_TEXT    "Launch with --run-console (for testing)"
-!define MUI_FINISHPAGE_RUN_PARAMETERS "--run-console"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${SRCDIR}\LICENSE"
 !insertmacro MUI_PAGE_DIRECTORY
+Page custom OptionsPage OptionsPageLeave
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
@@ -66,6 +74,33 @@ VIAddVersionKey /LANG=0 "LegalCopyright"  "See LICENSE"
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "English"
+
+; ============================================================================
+; Options page
+; ============================================================================
+Function OptionsPage
+  !insertmacro MUI_HEADER_TEXT "Additional Options" "Choose optional features to install."
+  nsDialogs::Create 1018
+  Pop $Dialog
+  ${If} $Dialog == error
+    Abort
+  ${EndIf}
+
+  ${NSD_CreateCheckbox} 0 10u 100% 12u "Install OpenSSH Server (enables SSH access to this computer)"
+  Pop $Checkbox_SSH
+  ${NSD_SetState} $Checkbox_SSH $SSH_State
+
+  ${NSD_CreateCheckbox} 0 30u 100% 12u "Allow empty passwords for SSH login"
+  Pop $Checkbox_EmptyPwd
+  ${NSD_SetState} $Checkbox_EmptyPwd $EmptyPwd_State
+
+  nsDialogs::Show
+FunctionEnd
+
+Function OptionsPageLeave
+  ${NSD_GetState} $Checkbox_SSH $SSH_State
+  ${NSD_GetState} $Checkbox_EmptyPwd $EmptyPwd_State
+FunctionEnd
 
 ; ============================================================================
 ; Install section
@@ -91,6 +126,32 @@ Section "Main" SecMain
   SetOutPath "$INSTDIR"
   ExecWait '"$INSTDIR\BonjourServiceAdvertiser.exe" --install' $0
   ExecWait 'sc start BonjourServiceAdvertiser' $0
+
+  ; Install OpenSSH if requested
+  ${If} $SSH_State == ${BST_CHECKED}
+    DetailPrint "Installing OpenSSH Server..."
+    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -Command "Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0"'
+    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-Service -Name sshd -StartupType Automatic; Start-Service sshd -ErrorAction SilentlyContinue"'
+  ${EndIf}
+
+  ; Configure SSH to allow empty passwords if requested
+  ${If} $EmptyPwd_State == ${BST_CHECKED}
+    DetailPrint "Configuring SSH to allow empty passwords..."
+    FileOpen $R0 "$TEMP\bsa_sshcfg.ps1" w
+    FileWrite $R0 '$$f = "$COMMONPROGRAMDATA\ssh\sshd_config"$\r$\n'
+    FileWrite $R0 'if (-not (Test-Path $$f)) { exit 0 }$\r$\n'
+    FileWrite $R0 '$$c = Get-Content $$f -Raw$\r$\n'
+    FileWrite $R0 'if ($$c -match "(?im)^#?[ \t]*PermitEmptyPasswords[ \t]+\S+") {$\r$\n'
+    FileWrite $R0 '    $$c = $$c -replace "(?im)^#?[ \t]*PermitEmptyPasswords[ \t]+\S+", "PermitEmptyPasswords yes"$\r$\n'
+    FileWrite $R0 '} else {$\r$\n'
+    FileWrite $R0 '    $$c = $$c.TrimEnd() + "`r`nPermitEmptyPasswords yes`r`n"$\r$\n'
+    FileWrite $R0 '}$\r$\n'
+    FileWrite $R0 'Set-Content -Path $$f -Value $$c -NoNewline$\r$\n'
+    FileWrite $R0 'Restart-Service sshd -ErrorAction SilentlyContinue$\r$\n'
+    FileClose $R0
+    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$TEMP\bsa_sshcfg.ps1"'
+    Delete "$TEMP\bsa_sshcfg.ps1"
+  ${EndIf}
 
   ; Write Add/Remove Programs entry
   WriteRegStr HKLM \

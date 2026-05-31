@@ -54,17 +54,7 @@ jobs:
         run: cmake --build build --config Release --parallel
 
       # ----------------------------------------------------------------
-      # 5. Upload executable artifact
-      # ----------------------------------------------------------------
-      - name: Upload executable
-        uses: actions/upload-artifact@v4
-        with:
-          name: BonjourServiceAdvertiser-exe
-          path: build/BonjourServiceAdvertiser.exe
-          if-no-files-found: error
-
-      # ----------------------------------------------------------------
-      # 6. Build installer with NSIS (GPL, every commit)
+      # 5. Build installer with NSIS (GPL, every commit)
       #    NSIS is pre-installed on windows-latest runners
       # ----------------------------------------------------------------
       - name: Build NSIS installer
@@ -106,15 +96,9 @@ jobs:
         with:
           name: BonjourServiceAdvertiserSetup-exe
 
-      - name: Download EXE
-        uses: actions/download-artifact@v4
-        with:
-          name: BonjourServiceAdvertiser-exe
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             BonjourServiceAdvertiserSetup.exe
-            BonjourServiceAdvertiser.exe
           generate_release_notes: true
