@@ -70,8 +70,9 @@ void DetectorManager::Reconcile(BonjourPublisher& publisher,
         // Check per-service enable flags
         const char* t = det->ServiceType();
         bool enabled = false;
-        if      (cfg.ssh      && std::string(t) == "_ssh._tcp")   enabled = true;
-        else if (cfg.smb      && std::string(t) == "_smb._tcp")   enabled = true;
+        if      (cfg.ssh      && std::string(t) == "_ssh._tcp")        enabled = true;
+        else if (cfg.ssh      && std::string(t) == "_sftp-ssh._tcp")   enabled = true;
+        else if (cfg.smb      && std::string(t) == "_smb._tcp")        enabled = true;
         else if (cfg.rdp      && std::string(t) == "_rdp._tcp")   enabled = true;
         else if (cfg.http     && std::string(t) == "_http._tcp")
         {
@@ -86,9 +87,9 @@ void DetectorManager::Reconcile(BonjourPublisher& publisher,
         if (!enabled) continue;
         if (!det->IsActive()) continue;
 
-        // Prepend computer name to service name (e.g., "MYPC-SSH")
-        std::string fullName = computerName + "-" + det->Name();
-        desired.push_back({fullName, t, det->Port(), det->TxtRecords()});
+        // Use computer name as the service instance name (e.g., "Music")
+        // Different protocols are distinguished by service type, not name.
+        desired.push_back({computerName, t, det->Port(), det->TxtRecords()});
     }
 
     // Custom advertisements

@@ -5,6 +5,9 @@
 #endif
 #include <windows.h>
 
+#include "bonjour_publisher.h"
+#include "detector_manager.h"
+
 namespace bsa {
 
 // ---------------------------------------------------------------------------
@@ -33,10 +36,12 @@ private:
     void TryLoadBonjour();
     void DoReconcile();
 
-    HANDLE m_hStopEvent    = nullptr;   // manual-reset; set by StopAsync()
-    HANDLE m_hConfigChange = nullptr;   // ReadDirectoryChangesW notification
-    HANDLE m_hTimer        = nullptr;   // waitable timer (300 s)
-    HANDLE m_hConfigDir    = nullptr;   // directory handle for config watching
+    HANDLE           m_hStopEvent    = nullptr;   // manual-reset; set by StopAsync()
+    HANDLE           m_hConfigChange = nullptr;   // ReadDirectoryChangesW notification
+    HANDLE           m_hTimer        = nullptr;   // waitable timer (300 s)
+    HANDLE           m_hConfigDir    = nullptr;   // directory handle for config watching
+    BonjourPublisher m_publisher;                 // owns dnssd.dll lifetime
+    DetectorManager  m_manager;                   // owns live advertisements
 };
 
 } // namespace bsa

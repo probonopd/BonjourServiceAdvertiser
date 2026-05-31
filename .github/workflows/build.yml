@@ -64,38 +64,29 @@ jobs:
           if-no-files-found: error
 
       # ----------------------------------------------------------------
-      # 6. Build installer (only on tag pushes)
-      #    Requires .NET 8 (pre-installed on windows-latest) + WiX v4
-      #    Note: WiX v7 EULA acceptance requires interactive acceptance
+      # 6. Build installer with NSIS (GPL, every commit)
+      #    NSIS is pre-installed on windows-latest runners
       # ----------------------------------------------------------------
-      - name: Install WiX toolset
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        run: dotnet tool install --global wix
-
-      - name: Build MSI installer
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Build NSIS installer
         shell: pwsh
         run: |
           $buildDir = "${{ github.workspace }}\build"
           $srcDir   = "${{ github.workspace }}"
+          $nsisExe  = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (-not (Test-Path $nsisExe)) {
+            # Install NSIS if not present
+            choco install nsis --yes --no-progress | Out-Null
+          }
+          & $nsisExe /V2 `
+            /DBUILDDIR="$buildDir" `
+            /DSRCDIR="$srcDir" `
+            "$srcDir\installer\installer.nsi"
 
-          # Add WiX to PATH (dotnet tools)
-          $env:PATH = "$env:USERPROFILE\.dotnet\tools;$env:PATH"
-
-          wix build `
-            -arch x64 `
-            -d "BuildDir=$buildDir" `
-            -d "SourceDir=$srcDir" `
-            installer\installer.wxs `
-            -o BonjourServiceAdvertiserSetup.msi
-
-      - name: Upload MSI installer
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: BonjourServiceAdvertiserSetup-msi
-          path: BonjourServiceAdvertiserSetup.msi
+          name: BonjourServiceAdvertiserSetup-exe
+          path: build\BonjourServiceAdvertiserSetup.exe
           if-no-files-found: error
 
   # ----------------------------------------------------------------
@@ -110,10 +101,10 @@ jobs:
       contents: write
 
     steps:
-      - name: Download MSI
+      - name: Download installer
         uses: actions/download-artifact@v4
         with:
-          name: BonjourServiceAdvertiserSetup-msi
+          name: BonjourServiceAdvertiserSetup-exe
 
       - name: Download EXE
         uses: actions/download-artifact@v4
@@ -124,6 +115,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            BonjourServiceAdvertiserSetup.msi
+            BonjourServiceAdvertiserSetup.exe
             BonjourServiceAdvertiser.exe
           generate_release_notes: true

@@ -53,21 +53,18 @@ void ServiceWorker::StopAsync() {
 // DoReconcile — reload config + reconcile advertisements
 // ---------------------------------------------------------------------------
 void ServiceWorker::DoReconcile() {
-    static BonjourPublisher publisher;
-    static DetectorManager  manager;
-
-    if (!publisher.IsAvailable()) {
-        publisher.EnsureLoaded();
+    if (!m_publisher.IsAvailable()) {
+        m_publisher.EnsureLoaded();
     }
 
-    if (!publisher.IsAvailable()) {
+    if (!m_publisher.IsAvailable()) {
         Logger::Get().Warn("reconcile",
             "Bonjour unavailable — skipping reconciliation");
         return;
     }
 
     Config::Instance().Load(Config::Instance().GetPath());
-    manager.Reconcile(publisher, Config::Instance().Get());
+    m_manager.Reconcile(m_publisher, Config::Instance().Get());
 }
 
 // ---------------------------------------------------------------------------
@@ -224,12 +221,15 @@ void ServiceWorker::Run() {
             Sleep(500);
         }
 
-        // If Bonjour is still unavailable after a reconcile attempt, schedule retry
-        // (hBonjourRetry is one-shot; reschedule so it fires again in 60 s)
-        if (!m_hStopEvent || WaitForSingleObject(m_hStopEvent, 0) != WAIT_OBJECT_0) {
+        // Schedule retry only if Bonjour is still not available
+        if (!m_publisher.IsAvailable()) {
             scheduleRetry();
         }
     }
+
+    // Un-advertise all services before we close the Bonjour handle
+    Logger::Get().Info("service", "Withdrawing all mDNS advertisements");
+    m_manager.Clear();
 
     // Cleanup
     if (hBonjourRetry) {

@@ -1,4 +1,4 @@
-# Bonjour Auto Advertiser for Windows
+# Bonjour Service Advertiser for Windows
 
 ## Purpose
 

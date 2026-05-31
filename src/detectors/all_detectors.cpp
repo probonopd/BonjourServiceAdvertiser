@@ -35,7 +35,12 @@ public:                                                                       \
 // ---------------------------------------------------------------------------
 // SSH — requires OpenSSH service (sshd) and port 22
 // ---------------------------------------------------------------------------
-SIMPLE_DETECTOR(SshDetector,    "SSH",    "_ssh._tcp",  22,   L"sshd")
+SIMPLE_DETECTOR(SshDetector,    "SSH",       "_ssh._tcp",      22,  L"sshd")
+
+// ---------------------------------------------------------------------------
+// SFTP — co-advertise SSH also as sftp-ssh (same port/service, RFC 4253)
+// ---------------------------------------------------------------------------
+SIMPLE_DETECTOR(SftpDetector,   "SFTP",      "_sftp-ssh._tcp", 22,  L"sshd")
 
 // ---------------------------------------------------------------------------
 // SMB — requires LanmanServer and port 445
@@ -133,6 +138,7 @@ public:
 std::vector<std::unique_ptr<IDetector>> CreateBuiltinDetectors() {
     std::vector<std::unique_ptr<IDetector>> v;
     v.push_back(std::make_unique<SshDetector>());
+    v.push_back(std::make_unique<SftpDetector>());
     v.push_back(std::make_unique<SmbDetector>());
     v.push_back(std::make_unique<RdpDetector>());
     v.push_back(std::make_unique<HttpDetector>());
