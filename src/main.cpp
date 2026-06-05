@@ -114,8 +114,8 @@ static bool InstallService() {
 
     bool ok = (hSvc != nullptr);
     if (ok) {
-        // Set delayed auto-start
-        SERVICE_DELAYED_AUTO_START_INFO dasi{ TRUE };
+        // Set delayed auto-start to false (start immediately)
+        SERVICE_DELAYED_AUTO_START_INFO dasi{ FALSE };
         ChangeServiceConfig2W(hSvc,
                               SERVICE_CONFIG_DELAYED_AUTO_START_INFO, &dasi);
 
